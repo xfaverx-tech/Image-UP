@@ -1,5 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
+import { PromptEngine } from "../types";
 
 export class GeminiService {
   private static async getAI() {
@@ -18,9 +19,6 @@ export class GeminiService {
     });
   }
 
-  /**
-   * Mejora de imagen (Upscaling/Restoration) usando modelos Flash gratuitos.
-   */
   static async enhanceImage(file: File): Promise<string> {
     const ai = await this.getAI();
     const base64 = await this.fileToBase64(file);
@@ -42,10 +40,6 @@ export class GeminiService {
     return `data:image/png;base64,${part.inlineData.data}`;
   }
 
-  /**
-   * Remix / Fusión de imágenes mejorado.
-   * Ahora usa una lógica estructural: Imagen 1 es la base de composición, Imagen 2 es el estilo/sujeto.
-   */
   static async fuseImages(file1: File, file2: File, instruction?: string): Promise<string> {
     const ai = await this.getAI();
     const b1 = await this.fileToBase64(file1);
@@ -74,9 +68,6 @@ export class GeminiService {
     return `data:image/png;base64,${part.inlineData.data}`;
   }
 
-  /**
-   * Creación de Stickers (Ahora estáticos y gratuitos)
-   */
   static async createSticker(prompt: string): Promise<string> {
     const ai = await this.getAI();
     
@@ -96,16 +87,35 @@ export class GeminiService {
     return `data:image/png;base64,${part.inlineData.data}`;
   }
 
-  static async analyzeImageForPrompt(file: File): Promise<string> {
+  static async analyzeImageForPrompt(file: File, engine: PromptEngine): Promise<string> {
     const ai = await this.getAI();
     const base64 = await this.fileToBase64(file);
+
+    let systemInstruction = "";
+    switch (engine) {
+      case 'NANO_BANANA':
+        systemInstruction = "Focus on artistic styles, direct composition descriptions, and clear geometry. Use terms like 'high-res texture' and 'Flash-engine aesthetic'.";
+        break;
+      case 'MIDJOURNEY_GROK':
+        systemInstruction = "Use artistic tokens, technical camera settings (e.g., 85mm, f/1.8), cinematic lighting terms, and stylization parameters like --v 6.0 --ar 16:9.";
+        break;
+      case 'DALLE_3':
+        systemInstruction = "Provide a long, descriptive narrative prompt. Describe every detail, mood, and implied story elements as a professional art director would.";
+        break;
+      case 'STABLE_DIFFUSION':
+        systemInstruction = "Format the prompt as a list of keyword tags separated by commas. Include weights and rendering engine keywords (e.g., (masterpiece:1.2), unreal engine 5, octane render, trending on artstation).";
+        break;
+      case 'META_AI':
+        systemInstruction = "Keep it natural and concise but descriptive. Focus on the main subject and the overall vibe without excessive technical jargon.";
+        break;
+    }
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { data: base64, mimeType: file.type } },
-          { text: "Detailed prompt for image generation focusing on composition, lighting, and style. Text only." }
+          { text: `Reverse engineer this image and generate a HIGH QUALITY prompt specifically optimized for ${engine}. ${systemInstruction} Provide ONLY the prompt text.` }
         ]
       }
     });

@@ -9,6 +9,8 @@ export enum ToolType {
   STICKER = 'STICKER'
 }
 
+export type PromptEngine = 'NANO_BANANA' | 'MIDJOURNEY_GROK' | 'DALLE_3' | 'STABLE_DIFFUSION' | 'META_AI';
+
 export interface GenerationResult {
   url: string;
   type?: 'image' | 'video';
@@ -28,4 +30,11 @@ export interface StyleOption {
   name: string;
   description: string;
   previewColor: string;
+}
+
+export interface EngineOption {
+  id: PromptEngine;
+  name: string;
+  description: string;
+  icon: string;
 }

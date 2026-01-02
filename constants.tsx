@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { StyleOption } from './types';
+import { StyleOption, EngineOption } from './types';
 
 export const STYLES: StyleOption[] = [
   { id: 'hyperreal', name: 'Hyper Realista', description: 'Realismo fotográfico impactante', previewColor: 'bg-cyan-400' },
@@ -11,6 +11,14 @@ export const STYLES: StyleOption[] = [
   { id: 'fantasy', name: 'Fantasía Astral', description: 'Magia, estrellas y auroras', previewColor: 'bg-indigo-500' },
   { id: 'popart', name: 'Pop Art', description: 'Colores saturados estilo cómic', previewColor: 'bg-yellow-400' },
   { id: 'sketch', name: 'Dibujo a Carboncillo', description: 'Elegancia en blanco y negro', previewColor: 'bg-slate-400' }
+];
+
+export const ENGINES: EngineOption[] = [
+  { id: 'NANO_BANANA', name: 'Nano Banana', description: 'Optimizado para Gemini Flash', icon: '🍌' },
+  { id: 'MIDJOURNEY_GROK', name: 'Midjourney / Grok', description: 'Estética y parámetros artísticos', icon: '🎨' },
+  { id: 'DALLE_3', name: 'DALL-E 3', description: 'Narrativo y descriptivo', icon: '🤖' },
+  { id: 'STABLE_DIFFUSION', name: 'Stable Diffusion', description: 'Tags y tokens técnicos', icon: '⚙️' },
+  { id: 'META_AI', name: 'Meta AI', description: 'Natural y directo', icon: '🔵' }
 ];
 
 export const Icons = {
@@ -34,5 +42,8 @@ export const Icons = {
   ),
   Sticker: () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-10.5L15.5 3Z"/><path d="M15 3v5.5a1.5 1.5 0 0 0 1.5 1.5H22"/><path d="M8 13h1"/><path d="M12 13h1"/><path d="M16 13h1"/><path d="M8 17h8"/></svg>
+  ),
+  Copy: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
   )
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { ToolType, AppState, GenerationResult } from './types';
-import { Icons, STYLES } from './constants';
+import { ToolType, AppState, GenerationResult, PromptEngine } from './types';
+import { Icons, STYLES, ENGINES } from './constants';
 import { GeminiService } from './services/geminiService';
 
 const NavItem: React.FC<{ 
@@ -54,7 +54,9 @@ const App: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0].name);
+  const [selectedEngine, setSelectedEngine] = useState<PromptEngine>(ENGINES[0].id);
   const [isMobile, setIsMobile] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -67,6 +69,7 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, activeTool: tool, result: null, error: null }));
     setFiles([]);
     setPrompt('');
+    setCopySuccess(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index?: number) => {
@@ -84,9 +87,20 @@ const App: React.FC = () => {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Fallo al copiar: ', err);
+    }
+  };
+
   const processAction = async () => {
     if (state.isProcessing) return;
     setState(prev => ({ ...prev, isProcessing: true, error: null, result: null }));
+    setCopySuccess(false);
     try {
       let url = '';
       let textResult = '';
@@ -106,7 +120,7 @@ const App: React.FC = () => {
           break;
         case ToolType.PROMPT_GEN:
           if (!files[0]) throw new Error("Sube una imagen.");
-          textResult = await GeminiService.analyzeImageForPrompt(files[0]);
+          textResult = await GeminiService.analyzeImageForPrompt(files[0], selectedEngine);
           break;
         case ToolType.STYLE:
           if (!files[0]) throw new Error("Sube una imagen.");
@@ -137,7 +151,7 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen relative z-10 overflow-hidden bg-vivid">
+    <div className="flex flex-col lg:flex-row h-screen relative z-10 overflow-hidden bg-vivid text-slate-200">
       {/* Sidebar - Desktop Only */}
       {!isMobile && (
         <aside className="w-72 glass flex flex-col p-6 gap-6 border-r border-white/5">
@@ -237,6 +251,27 @@ const App: React.FC = () => {
                 )}
               </div>
 
+              {state.activeTool === ToolType.PROMPT_GEN && (
+                <div className="glass p-6 rounded-3xl border-white/5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 block">Motor de Destino</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {ENGINES.map(engine => (
+                      <button
+                        key={engine.id}
+                        onClick={() => setSelectedEngine(engine.id)}
+                        className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${selectedEngine === engine.id ? 'border-indigo-500 bg-indigo-500/10 shadow-lg' : 'border-white/5 hover:bg-white/5'}`}
+                      >
+                        <span className="text-xl">{engine.icon}</span>
+                        <div>
+                          <p className="text-[11px] font-bold text-white uppercase">{engine.name}</p>
+                          <p className="text-[9px] text-slate-500 leading-none mt-1">{engine.description}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {(state.activeTool === ToolType.FUSION || state.activeTool === ToolType.STICKER) && (
                 <div className="glass p-6 rounded-3xl border-white/5">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 block">Dirección Creativa</label>
@@ -244,7 +279,7 @@ const App: React.FC = () => {
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder={state.activeTool === ToolType.STICKER ? "Un gato astronauta..." : "Ej: Combina el edificio con cristales azules..."}
-                    className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder:text-slate-700 resize-none"
+                    className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder:text-slate-700 resize-none shadow-inner"
                   />
                 </div>
               )}
@@ -281,18 +316,32 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex-1 flex items-center justify-center bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-inner">
+                <div className="flex-1 flex flex-col items-center justify-center bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-inner">
                   {state.result ? (
                     state.result.url ? (
                       <img src={state.result.url} className="max-w-full max-h-[75vh] object-contain animate-in fade-in zoom-in duration-700" alt="Resultado" />
                     ) : (
-                      <div className="p-8 w-full">
-                        <pre className="text-indigo-400 text-xs leading-relaxed bg-black/50 p-8 rounded-3xl border border-indigo-500/20 whitespace-pre-wrap font-sans shadow-lg">{state.result.prompt}</pre>
+                      <div className="p-8 w-full h-full flex flex-col relative">
+                        <div className="flex justify-between items-center mb-6">
+                           <div className="flex items-center gap-3">
+                             <span className="text-2xl">{ENGINES.find(e => e.id === selectedEngine)?.icon}</span>
+                             <span className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.2em]">Prompt para {ENGINES.find(e => e.id === selectedEngine)?.name}</span>
+                           </div>
+                           <button 
+                            onClick={() => copyToClipboard(state.result?.prompt || '')}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg ${copySuccess ? 'bg-green-600 text-white scale-105' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                           >
+                             <Icons.Copy /> {copySuccess ? '¡Copiado!' : 'Copiar al Portapapeles'}
+                           </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto no-scrollbar bg-black/50 p-8 rounded-[2rem] border border-white/5 shadow-2xl">
+                           <pre className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-mono italic">{state.result.prompt}</pre>
+                        </div>
                       </div>
                     )
                   ) : (
-                    <div className="text-center opacity-10 py-32 pointer-events-none">
-                      <div className="scale-[3] mb-10 flex justify-center text-slate-400"><Icons.Fusion /></div>
+                    <div className="text-center opacity-10 py-32 pointer-events-none flex flex-col items-center">
+                      <div className="scale-[3] mb-10 text-slate-400"><Icons.Fusion /></div>
                       <p className="font-black tracking-[0.6em] text-white uppercase text-[12px]">Canvas de Generación</p>
                     </div>
                   )}
