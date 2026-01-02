@@ -1,6 +1,6 @@
 {
   "name": "NanoStudio AI",
-  "description": "Edición de fotos avanzada y simple. Mejora de calidad 4K, edición por texto y generador de stickers con IA.",
+  "description": "Una suite completa de edición y generación de imágenes impulsada por los modelos Gemini Nano Banana. Incluye escalado 4K, fusión de imágenes, análisis de movimiento de video y transformación de estilos artísticos.",
   "requestFramePermissions": [
     "camera"
   ]

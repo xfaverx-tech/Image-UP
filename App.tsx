@@ -1,208 +1,337 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ToolType, AppState, GenerationResult } from './types';
 import { Icons, STYLES } from './constants';
 import { GeminiService } from './services/geminiService';
 
+const NavItem: React.FC<{ 
+  id: ToolType; 
+  label: string; 
+  icon: React.ReactNode; 
+  active: boolean; 
+  onClick: (id: ToolType) => void;
+  isMobile?: boolean;
+}> = ({ id, label, icon, active, onClick, isMobile }) => {
+  if (isMobile) {
+    return (
+      <button
+        onClick={() => onClick(id)}
+        className={`flex flex-col items-center justify-center flex-1 py-2 transition-all ${
+          active ? 'text-indigo-400' : 'text-slate-500'
+        }`}
+      >
+        <span className={`${active ? 'scale-110' : ''} transition-transform`}>{icon}</span>
+        <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">{label.split(' ')[0]}</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onClick(id)}
+      className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all duration-300 group ${
+        active 
+          ? 'bg-gradient-to-r from-indigo-600 to-pink-600 text-white shadow-lg' 
+          : 'text-slate-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      <span className={`${active ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>
+        {icon}
+      </span>
+      <span className="font-semibold text-xs tracking-wide">{label}</span>
+    </button>
+  );
+};
+
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
-    activeTool: ToolType.ENHANCE,
+    activeTool: ToolType.FUSION,
     isProcessing: false,
     result: null,
     error: null
   });
 
   const [files, setFiles] = useState<File[]>([]);
-  const [instruction, setInstruction] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0].name);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleToolChange = (tool: ToolType) => {
     setState(prev => ({ ...prev, activeTool: tool, result: null, error: null }));
-    setInstruction('');
+    setFiles([]);
+    setPrompt('');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index?: number) => {
+    const newFiles = Array.from(e.target.files || []);
+    if (state.activeTool === ToolType.FUSION) {
+      const updatedFiles = [...files];
+      if (typeof index === 'number') {
+        updatedFiles[index] = newFiles[0];
+      } else {
+        updatedFiles.push(...newFiles);
+      }
+      setFiles(updatedFiles.slice(0, 2));
+    } else {
+      setFiles(newFiles.slice(0, 1));
+    }
   };
 
   const processAction = async () => {
     if (state.isProcessing) return;
-    if (state.activeTool !== ToolType.STICKER && !files[0]) {
-      setState(prev => ({ ...prev, error: "Por favor, selecciona una imagen primero." }));
-      return;
-    }
-    if ((state.activeTool === ToolType.EDIT || state.activeTool === ToolType.STICKER) && !instruction) {
-      setState(prev => ({ ...prev, error: "Escribe qué quieres hacer." }));
-      return;
-    }
-
     setState(prev => ({ ...prev, isProcessing: true, error: null, result: null }));
     try {
-      let res: string;
-      let type: 'image' | 'video' = 'image';
+      let url = '';
+      let textResult = '';
 
       switch (state.activeTool) {
         case ToolType.ENHANCE:
-          res = await GeminiService.enhanceImage(files[0]);
+          if (!files[0]) throw new Error("Selecciona una imagen.");
+          url = await GeminiService.enhanceImage(files[0]);
           break;
-        case ToolType.EDIT:
-          res = await GeminiService.editImage(files[0], instruction);
-          break;
-        case ToolType.STYLE:
-          res = await GeminiService.applyStyle(files[0], selectedStyle);
+        case ToolType.FUSION:
+          if (files.length < 2 || !files[0] || !files[1]) throw new Error("Sube 2 imágenes para el Remix.");
+          url = await GeminiService.fuseImages(files[0], files[1], prompt);
           break;
         case ToolType.STICKER:
-          res = await GeminiService.createSticker(instruction);
-          type = 'video';
+          if (!prompt) throw new Error("Escribe una idea.");
+          url = await GeminiService.createSticker(prompt);
           break;
-        default:
-          throw new Error("Herramienta no implementada.");
+        case ToolType.PROMPT_GEN:
+          if (!files[0]) throw new Error("Sube una imagen.");
+          textResult = await GeminiService.analyzeImageForPrompt(files[0]);
+          break;
+        case ToolType.STYLE:
+          if (!files[0]) throw new Error("Sube una imagen.");
+          url = await GeminiService.changeStyle(files[0], selectedStyle);
+          break;
       }
 
-      setState(prev => ({ ...prev, isProcessing: false, result: { url: res, type } }));
+      setState(prev => ({ 
+        ...prev, 
+        isProcessing: false, 
+        result: { url, prompt: textResult, type: 'image' } 
+      }));
     } catch (err: any) {
-      setState(prev => ({ ...prev, isProcessing: false, error: err.message || "Ocurrió un error inesperado." }));
+      setState(prev => ({ ...prev, isProcessing: false, error: err.message || 'Error inesperado' }));
     }
   };
 
-  const navItems = [
-    { id: ToolType.ENHANCE, label: "Mejorar", icon: <Icons.Enhance /> },
-    { id: ToolType.EDIT, label: "Editar", icon: <Icons.Edit /> },
+  const canProcess = state.activeTool === ToolType.STICKER 
+    ? !!prompt 
+    : (state.activeTool === ToolType.FUSION ? files.length === 2 : files.length > 0);
+
+  const navigationItems = [
+    { id: ToolType.FUSION, label: "Remix Studio", icon: <Icons.Fusion /> },
+    { id: ToolType.ENHANCE, label: "Mejora HD", icon: <Icons.Enhance /> },
     { id: ToolType.STYLE, label: "Estilos", icon: <Icons.Style /> },
-    { id: ToolType.STICKER, label: "Stickers", icon: <Icons.Sticker /> }
+    { id: ToolType.STICKER, label: "Stickers", icon: <Icons.Sticker /> },
+    { id: ToolType.PROMPT_GEN, label: "Analizar", icon: <Icons.Analyze /> }
   ];
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 selection:bg-indigo-500/30">
-      {/* Top Navbar */}
-      <nav className="h-16 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Icons.Enhance />
+    <div className="flex flex-col lg:flex-row h-screen relative z-10 overflow-hidden bg-vivid">
+      {/* Sidebar - Desktop Only */}
+      {!isMobile && (
+        <aside className="w-72 glass flex flex-col p-6 gap-6 border-r border-white/5">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Icons.Fusion />
+            </div>
+            <h1 className="text-lg font-black tracking-tighter text-white uppercase">Nano<span className="text-indigo-400">Vivid</span></h1>
           </div>
-          <h1 className="font-bold tracking-tight text-lg">NanoStudio<span className="text-indigo-400">AI</span></h1>
-        </div>
-        <button 
-          onClick={processAction}
-          disabled={state.isProcessing}
-          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-6 py-2 rounded-full text-sm font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
-        >
-          {state.isProcessing ? "Procesando..." : "Generar"}
-        </button>
-      </nav>
 
-      <div className="max-w-6xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Sidebar Controls */}
-        <div className="lg:col-span-4 space-y-6">
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
-            <div className="flex bg-black/40 p-1 rounded-xl">
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => handleToolChange(item.id)}
-                  className={`flex-1 flex flex-col items-center py-3 rounded-lg transition-all ${state.activeTool === item.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  {item.icon}
-                  <span className="text-[10px] mt-1 font-bold uppercase">{item.label}</span>
-                </button>
-              ))}
+          <nav className="flex flex-col gap-1.5">
+            {navigationItems.map(item => (
+              <NavItem 
+                key={item.id}
+                id={item.id} 
+                label={item.label} 
+                icon={item.icon} 
+                active={state.activeTool === item.id} 
+                onClick={handleToolChange} 
+              />
+            ))}
+          </nav>
+
+          <div className="mt-auto p-4 bg-white/5 rounded-2xl border border-white/10 text-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Motor Gratuito Activo</p>
+            <p className="text-[8px] text-slate-600 mt-1">Gemini 2.5 Flash Image</p>
+          </div>
+        </aside>
+      )}
+
+      {/* Main Content */}
+      <main className={`flex-1 overflow-y-auto no-scrollbar pt-safe ${isMobile ? 'pb-24' : 'p-12'}`}>
+        <div className={`max-w-6xl mx-auto ${isMobile ? 'p-6' : ''}`}>
+          <header className="mb-8 flex flex-col md:flex-row justify-between items-start gap-4">
+            <div>
+              <h2 className="text-3xl font-black text-white tracking-tight">
+                {state.activeTool === ToolType.FUSION && "Remix & Fusión Pro"}
+                {state.activeTool === ToolType.ENHANCE && "Mejora de Imagen HD"}
+                {state.activeTool === ToolType.STYLE && "Estilos Artísticos"}
+                {state.activeTool === ToolType.STICKER && "Sticker Lab"}
+                {state.activeTool === ToolType.PROMPT_GEN && "Analizador Visual"}
+              </h2>
+              <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-bold">Herramientas optimizadas con Flash Engine</p>
             </div>
 
-            {state.activeTool !== ToolType.STICKER && (
-              <div 
-                onClick={() => document.getElementById('image-upload')?.click()}
-                className="aspect-square bg-black/40 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-colors overflow-hidden group"
-              >
-                <input type="file" id="image-upload" className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} accept="image/*" />
-                {files[0] ? (
-                  <img src={URL.createObjectURL(files[0])} className="w-full h-full object-cover" alt="Preview" />
-                ) : (
-                  <div className="text-center p-4">
-                    <p className="text-indigo-400 text-sm font-bold">Seleccionar Foto</p>
-                    <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">Click para subir</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {(state.activeTool === ToolType.EDIT || state.activeTool === ToolType.STICKER) && (
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">¿Qué quieres crear?</label>
-                <textarea 
-                  value={instruction}
-                  onChange={(e) => setInstruction(e.target.value)}
-                  placeholder={state.activeTool === ToolType.STICKER ? "Ej: Un astronauta bailando..." : "Ej: Ponle un sombrero rojo..."}
-                  className="w-full h-24 bg-black/40 border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 outline-none transition-all resize-none"
-                />
-              </div>
-            )}
-
-            {state.activeTool === ToolType.STYLE && (
-              <div className="grid grid-cols-2 gap-2">
-                {STYLES.map(style => (
-                  <button
-                    key={style.id}
-                    onClick={() => setSelectedStyle(style.name)}
-                    className={`p-3 rounded-xl border text-left flex items-center gap-2 transition-all ${selectedStyle === style.name ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/5 hover:bg-white/5'}`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${style.previewColor}`} />
-                    <span className="text-[10px] font-bold uppercase">{style.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
+            <button 
+              onClick={processAction}
+              disabled={state.isProcessing || !canProcess}
+              className="w-full md:w-auto px-10 py-4 bg-indigo-600 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl disabled:opacity-20 transition-all"
+            >
+              {state.isProcessing ? "Generando..." : "Ejecutar Motor"}
+            </button>
+          </header>
 
           {state.error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-medium">
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[11px] font-bold uppercase">
               ⚠️ {state.error}
             </div>
           )}
-        </div>
 
-        {/* Results Area */}
-        <div className="lg:col-span-8">
-          <div className="bg-white/5 border border-white/10 rounded-3xl min-h-[500px] flex flex-col items-center justify-center relative overflow-hidden">
-            {state.isProcessing && (
-              <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-lg font-bold">Generando Magia...</p>
-                <p className="text-sm text-slate-400 mt-2">Estamos procesando tu imagen con los modelos más avanzados de Google.</p>
-              </div>
-            )}
-
-            {state.result ? (
-              <div className="w-full h-full flex flex-col items-center p-4">
-                {state.result.type === 'video' ? (
-                  <video src={state.result.url} autoPlay loop muted className="max-w-full max-h-[70vh] rounded-2xl shadow-2xl" />
-                ) : (
-                  <img src={state.result.url} className="max-w-full max-h-[70vh] rounded-2xl shadow-2xl" alt="Result" />
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div className="xl:col-span-4 space-y-6">
+              <div className="glass p-6 rounded-3xl border-white/5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 block">Insumos Visuales</label>
+                
+                {state.activeTool === ToolType.FUSION ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    {[0, 1].map(idx => (
+                      <div key={idx} className="relative aspect-video">
+                        <input type="file" onChange={(e) => handleFileChange(e, idx)} className="hidden" id={`f-up-${idx}`} accept="image/*" />
+                        <label htmlFor={`f-up-${idx}`} className={`w-full h-full flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden ${files[idx] ? 'border-indigo-500/50' : 'border-white/10 hover:bg-white/5'}`}>
+                          {files[idx] ? (
+                            <img src={URL.createObjectURL(files[idx])} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-center">
+                              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{idx === 0 ? "Imagen Estructural" : "Imagen de Estilo"}</p>
+                              <p className="text-[8px] text-slate-600 uppercase">Haz clic para subir</p>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : state.activeTool !== ToolType.STICKER && (
+                  <div className="w-full aspect-square relative">
+                    <input type="file" onChange={handleFileChange} className="hidden" id="f-up-single" accept="image/*" />
+                    <label htmlFor="f-up-single" className={`w-full h-full flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden ${files[0] ? 'border-transparent' : 'border-white/10 hover:bg-white/5'}`}>
+                      {files[0] ? (
+                        <img src={URL.createObjectURL(files[0])} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center">
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Sube tu Imagen</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
                 )}
-                <div className="mt-6 flex gap-4">
-                  <a 
-                    href={state.result.url} 
-                    download="nanostudio-result"
-                    className="px-8 py-3 bg-white text-black rounded-full text-sm font-bold hover:scale-105 transition-all"
-                  >
-                    Descargar Resultado
-                  </a>
-                  <button 
-                    onClick={() => setState(prev => ({ ...prev, result: null }))}
-                    className="px-8 py-3 bg-white/5 rounded-full text-sm font-bold hover:bg-white/10 transition-all border border-white/10"
-                  >
-                    Nuevo Proyecto
-                  </button>
+              </div>
+
+              {(state.activeTool === ToolType.FUSION || state.activeTool === ToolType.STICKER) && (
+                <div className="glass p-6 rounded-3xl border-white/5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 block">Dirección Creativa</label>
+                  <textarea 
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={state.activeTool === ToolType.STICKER ? "Un gato astronauta..." : "Ej: Combina el edificio con cristales azules..."}
+                    className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder:text-slate-700 resize-none"
+                  />
                 </div>
+              )}
+
+              {state.activeTool === ToolType.STYLE && (
+                <div className="glass p-6 rounded-3xl border-white/5 max-h-[400px] overflow-y-auto no-scrollbar">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 block">Catálogo de Estilos</label>
+                  <div className="space-y-2">
+                    {STYLES.map(s => (
+                      <button 
+                        key={s.id} 
+                        onClick={() => setSelectedStyle(s.name)} 
+                        className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 ${selectedStyle === s.name ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 'border-white/5 hover:bg-white/5'}`}
+                      >
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${s.previewColor}`} />
+                        <div>
+                          <p className="text-[11px] font-bold text-white uppercase">{s.name}</p>
+                          <p className="text-[9px] text-slate-500 mt-0.5">{s.description}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="xl:col-span-8">
+              <div className="glass p-6 rounded-[2.5rem] border-white/5 min-h-[400px] lg:min-h-[650px] flex flex-col relative overflow-hidden shadow-2xl">
+                {state.isProcessing && (
+                  <div className="absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-xl flex flex-col items-center justify-center p-12 text-center">
+                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_20px_rgba(99,102,241,0.3)]"></div>
+                    <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tighter">Procesando Remix</h3>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">Usando Gemini 2.5 Flash Engine...</p>
+                  </div>
+                )}
+
+                <div className="flex-1 flex items-center justify-center bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-inner">
+                  {state.result ? (
+                    state.result.url ? (
+                      <img src={state.result.url} className="max-w-full max-h-[75vh] object-contain animate-in fade-in zoom-in duration-700" alt="Resultado" />
+                    ) : (
+                      <div className="p-8 w-full">
+                        <pre className="text-indigo-400 text-xs leading-relaxed bg-black/50 p-8 rounded-3xl border border-indigo-500/20 whitespace-pre-wrap font-sans shadow-lg">{state.result.prompt}</pre>
+                      </div>
+                    )
+                  ) : (
+                    <div className="text-center opacity-10 py-32 pointer-events-none">
+                      <div className="scale-[3] mb-10 flex justify-center text-slate-400"><Icons.Fusion /></div>
+                      <p className="font-black tracking-[0.6em] text-white uppercase text-[12px]">Canvas de Generación</p>
+                    </div>
+                  )}
+                </div>
+
+                {state.result?.url && (
+                  <div className="mt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">NanoVivid Flash Edition</span>
+                    <a 
+                      href={state.result.url} 
+                      download={`nano-remix-${Date.now()}`} 
+                      className="w-full sm:w-auto px-10 py-3.5 bg-white text-black active:scale-95 rounded-2xl text-[11px] font-black transition-all shadow-xl text-center uppercase tracking-widest"
+                    >
+                      Descargar Obra
+                    </a>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-center opacity-20 p-12">
-                <div className="scale-[3] mb-8 flex justify-center"><Icons.Enhance /></div>
-                <p className="text-sm font-bold uppercase tracking-[0.3em]">Tu resultado aparecerá aquí</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
 
-      <footer className="py-12 text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest">
-        Powered by Nano Banana & Gemini 3 Pro
-      </footer>
+      {/* Mobile Nav */}
+      {isMobile && (
+        <nav className="fixed bottom-0 left-0 right-0 glass border-t border-white/10 flex justify-around px-2 pb-safe z-50">
+          {navigationItems.map(item => (
+            <NavItem 
+              key={item.id}
+              id={item.id} 
+              label={item.label} 
+              icon={item.icon} 
+              active={state.activeTool === item.id} 
+              onClick={handleToolChange}
+              isMobile
+            />
+          ))}
+        </nav>
+      )}
     </div>
   );
 };

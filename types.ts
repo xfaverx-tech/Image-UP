@@ -1,14 +1,19 @@
 
 export enum ToolType {
   ENHANCE = 'ENHANCE',
-  EDIT = 'EDIT',
+  FUSION = 'FUSION',
+  PROMPT_GEN = 'PROMPT_GEN',
+  MOTION_GEN = 'MOTION_GEN',
+  CREATION = 'CREATION',
   STYLE = 'STYLE',
   STICKER = 'STICKER'
 }
 
 export interface GenerationResult {
-  url?: string;
+  url: string;
   type?: 'image' | 'video';
+  prompt?: string;
+  metadata?: any;
 }
 
 export interface AppState {
@@ -21,5 +26,6 @@ export interface AppState {
 export interface StyleOption {
   id: string;
   name: string;
+  description: string;
   previewColor: string;
 }
