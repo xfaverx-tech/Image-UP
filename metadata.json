@@ -1,0 +1,7 @@
+{
+  "name": "NanoStudio AI",
+  "description": "Edición de fotos avanzada y simple. Mejora de calidad 4K, edición por texto y generador de stickers con IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
