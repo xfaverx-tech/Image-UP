@@ -14,6 +14,7 @@ export const STYLES: StyleOption[] = [
 ];
 
 export const ENGINES: EngineOption[] = [
+  { id: 'NATIVO', name: 'Nativo', description: 'Ingeniería de Prompts Avanzada', icon: '🧠' },
   { id: 'NANO_BANANA', name: 'Nano Banana', description: 'Optimizado para Gemini Flash', icon: '🍌' },
   { id: 'MIDJOURNEY_GROK', name: 'Midjourney / Grok', description: 'Estética y parámetros artísticos', icon: '🎨' },
   { id: 'DALLE_3', name: 'DALL-E 3', description: 'Narrativo y descriptivo', icon: '🤖' },

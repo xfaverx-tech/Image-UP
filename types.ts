@@ -9,7 +9,7 @@ export enum ToolType {
   STICKER = 'STICKER'
 }
 
-export type PromptEngine = 'NANO_BANANA' | 'MIDJOURNEY_GROK' | 'DALLE_3' | 'STABLE_DIFFUSION' | 'META_AI';
+export type PromptEngine = 'NATIVO' | 'NANO_BANANA' | 'MIDJOURNEY_GROK' | 'DALLE_3' | 'STABLE_DIFFUSION' | 'META_AI';
 
 export interface GenerationResult {
   url: string;

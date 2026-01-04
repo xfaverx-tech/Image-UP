@@ -93,6 +93,9 @@ export class GeminiService {
 
     let systemInstruction = "";
     switch (engine) {
+      case 'NATIVO':
+        systemInstruction = "Act as an expert Prompt Engineer. Deconstruct the image and provide a MASTER-LEVEL prompt using the 'Layered Construction' technique. Include: 1. Core Subject (precise details), 2. Art Style/Medium (historical references or medium-specific terms), 3. Compositional Framing (Rule of thirds, camera angles), 4. Lighting & Color Theory (specific light types like Volumetric or Rim, hex-inspired descriptions), and 5. Atmospheric Tone. Ensure it is descriptive, semantic, and highly effective for high-end generation.";
+        break;
       case 'NANO_BANANA':
         systemInstruction = "Focus on artistic styles, direct composition descriptions, and clear geometry. Use terms like 'high-res texture' and 'Flash-engine aesthetic'.";
         break;
