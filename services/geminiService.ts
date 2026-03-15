@@ -1,6 +1,25 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { PromptEngine } from "../types";
+
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
 
 export class GeminiService {
   private static async getAI() {
@@ -32,7 +51,8 @@ export class GeminiService {
           { inlineData: { data: base64, mimeType: file.type } },
           { text: prompt }
         ]
-      }
+      },
+      config: { safetySettings }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
@@ -60,7 +80,8 @@ export class GeminiService {
           { inlineData: { data: b2, mimeType: file2.type } },
           { text: prompt }
         ]
-      }
+      },
+      config: { safetySettings }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
@@ -79,7 +100,8 @@ export class GeminiService {
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [{ text: enhancedPrompt }]
-      }
+      },
+      config: { safetySettings }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
@@ -114,13 +136,14 @@ export class GeminiService {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: {
         parts: [
           { inlineData: { data: base64, mimeType: file.type } },
           { text: `Reverse engineer this image and generate a HIGH QUALITY prompt specifically optimized for ${engine}. ${systemInstruction} Provide ONLY the prompt text.` }
         ]
-      }
+      },
+      config: { safetySettings }
     });
 
     return response.text || "No se pudo extraer el prompt.";
@@ -139,7 +162,8 @@ export class GeminiService {
           { inlineData: { data: base64, mimeType: file.type } },
           { text: prompt }
         ]
-      }
+      },
+      config: { safetySettings }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
